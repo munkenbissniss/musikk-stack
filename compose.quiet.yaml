@@ -1,0 +1,11 @@
+# Rolig modus: begrenser bakgrunnsapper så maskinen holder seg kjølig og stille.
+# Navidrome begrenses ALDRI – avspilling påvirkes ikke.
+x-bg: &bg
+  cpu_shares: 256
+services:
+  lidarr:       {<<: *bg, cpus: 1.0}
+  sabnzbd:      {<<: *bg, cpus: 1.0}
+  qbittorrent:  {<<: *bg, cpus: 1.0}
+  prowlarr:     {<<: *bg, cpus: 0.5}
+  flaresolverr: {<<: *bg, cpus: 0.5}
+  homepage:     {<<: *bg, cpus: 0.25}

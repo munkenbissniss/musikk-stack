@@ -1,0 +1,36 @@
+# Lager en ny release med ferdige pakker for Linux, macOS og Windows
+# hver gang du pusher en versjonstag, f.eks.:  git tag v1.0.0 && git push --tags
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sjekk Python og compose-filer
+        run: |
+          python3 -m py_compile tools/*.py
+          for f in "" ":compose.shared.yaml" ":compose.shared.yaml:compose.sharedvol.yaml" ":compose.netshare.yaml" ":compose.novpn.yaml" ":compose.quiet.yaml"; do
+            for p in "usenet,torrent,indeksere,kjoling" "usenet,indeksere,kjoling" ""; do
+              COMPOSE_FILE="compose.yaml$f" COMPOSE_PROFILES="$p" docker compose config -q
+            done
+          done
+          bash -n packaging/linux/*.sh packaging/macos/*.command linux/*.sh
+
+      - name: Bygg pakker
+        run: ./scripts/package.sh
+
+      - name: Lag release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

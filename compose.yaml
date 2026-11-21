@@ -1,0 +1,255 @@
+# =============================================================================
+#  Musikk-stack – automatisk musikkserver på Docker (Linux, macOS, Windows)
+#
+#  1) docker compose run --rm setup     ← veiviser, lager .env (kjøres én gang)
+#  2) docker compose up -d              ← starter alt
+#  3) docker compose logs -f autoconfig ← se at alt settes opp automatisk
+#
+#  Alle ${...} hentes fra .env. Overstyringsfiler (compose.*.yaml) og
+#  profiler velges av veiviseren via COMPOSE_FILE og COMPOSE_PROFILES.
+#
+#  Porter er valgt så stacken kan kjøre ved siden av Plex-stack og
+#  Lydbok-stack på samme maskin.
+# =============================================================================
+name: musikk-stack
+
+x-env: &env
+  PUID: ${PUID:-1000}
+  PGID: ${PGID:-1000}
+  TZ: ${TZ:-Europe/Oslo}
+
+x-svc: &svc
+  restart: unless-stopped
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    init:
+      condition: service_completed_successfully
+
+x-tool: &tool
+  image: python:3.13-alpine
+  restart: "no"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # Engangsjobber
+  # ---------------------------------------------------------------------------
+  setup:                 # Veiviser:  docker compose run --rm setup
+    <<: *tool
+    profiles: ["setup"]
+    network_mode: host
+    stdin_open: true
+    tty: true
+    working_dir: /stack
+    command: ["python", "-u", "/stack/tools/setup.py"]
+    volumes:
+      - ./:/stack
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  init:                  # Lager mapper og Navidrome-konfig før noe annet starter
+    <<: *tool
+    command: ["python", "-u", "/stack/tools/init.py"]
+    environment:
+      <<: *env
+      MUSIC_DIR: ${MUSIC_DIR:-}
+    volumes:
+      - ./tools:/stack/tools:ro
+      - ./homepage:/stack/homepage:ro
+      - ${CONFIG_ROOT:-./config}:/config
+      - ${DATA_ROOT:-./media}:/data
+
+  autoconfig:            # Setter opp og kobler sammen appene via API-ene deres
+    <<: *tool
+    command: ["python", "-u", "/stack/tools/autoconfig.py"]
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      navidrome: {condition: service_started}
+      lidarr: {condition: service_started}
+      homepage: {condition: service_started}
+      prowlarr: {condition: service_started, required: false}
+      qbittorrent: {condition: service_started, required: false}
+      sabnzbd: {condition: service_started, required: false}
+    environment:
+      <<: *env
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      LAN_IP: ${LAN_IP:-}
+      DASHBOARD_HOST: ${DASHBOARD_HOST:-localhost}
+      SHARED: ${SHARED:-0}
+      QBIT_URL: ${QBIT_URL:-}
+      NZBGET_URL: ${NZBGET_URL:-}
+      SAB_URL: ${SAB_URL:-}
+      PROWLARR_URL: ${PROWLARR_URL:-http://prowlarr:9696}
+      MUSIC_DIR: ${MUSIC_DIR:-}
+      MUSIC_QUALITY: ${MUSIC_QUALITY:-Standard}
+      COMPOSE_PROFILES: ${COMPOSE_PROFILES:-}
+      USENET_HOST: ${USENET_HOST:-}
+      USENET_PORT: ${USENET_PORT:-563}
+      USENET_USER: ${USENET_USER:-}
+      USENET_PASSWORD: ${USENET_PASSWORD:-}
+      USENET_CONNECTIONS: ${USENET_CONNECTIONS:-20}
+    volumes:
+      - ./tools:/stack/tools:ro
+      - ${CONFIG_ROOT:-./config}:/config
+      - ${DATA_ROOT:-./media}:/data:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # ---------------------------------------------------------------------------
+  # Lytting og bibliotek
+  # ---------------------------------------------------------------------------
+  navidrome:             # Musikkserver (Subsonic) – nettleser og mange apper
+    <<: *svc
+    image: deluan/navidrome:latest
+    container_name: navidrome
+    user: ${PUID:-1000}:${PGID:-1000}
+    environment:
+      TZ: ${TZ:-Europe/Oslo}
+      ND_CONFIGFILE: /data/navidrome.toml    # skrives av init (finner musikkmappa)
+      ND_SCANSCHEDULE: 1h
+      ND_LOGLEVEL: info
+    volumes:
+      - ${CONFIG_ROOT:-./config}/navidrome:/data
+      - ${DATA_ROOT:-./media}:/media:ro
+    ports:
+      - 4533:4533
+
+  lidarr:                # Følger artister og henter album automatisk
+    <<: *svc
+    image: lscr.io/linuxserver/lidarr:latest
+    container_name: lidarr
+    environment: *env
+    volumes:
+      - ${CONFIG_ROOT:-./config}/lidarr:/config
+      - ${DATA_ROOT:-./media}:/data
+    ports:
+      - 8686:8686
+
+  # ---------------------------------------------------------------------------
+  # Nedlasting. Hoppes over når Plex-stackens brukes.
+  # ---------------------------------------------------------------------------
+  sabnzbd:               # Usenet (profil «usenet»)
+    <<: *svc
+    profiles: ["usenet"]
+    image: lscr.io/linuxserver/sabnzbd:latest
+    container_name: musikk-sabnzbd
+    environment: *env
+    volumes:
+      - ${CONFIG_ROOT:-./config}/sabnzbd:/config
+      - ${DATA_ROOT:-./media}:/data
+    ports:
+      - 8085:8080
+
+  gluetun:               # VPN-tunnel med killswitch for qBittorrent (profil «torrent»)
+    image: qmcgaw/gluetun:latest
+    container_name: musikk-gluetun
+    profiles: ["torrent"]
+    restart: unless-stopped
+    cap_add: [NET_ADMIN]
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      TZ: ${TZ:-Europe/Oslo}
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:-protonvpn}
+      VPN_TYPE: ${VPN_TYPE:-wireguard}
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+      OPENVPN_USER: ${OPENVPN_USER:-}
+      OPENVPN_PASSWORD: ${OPENVPN_PASSWORD:-}
+      SERVER_COUNTRIES: ${VPN_SERVER_COUNTRIES:-}
+      VPN_PORT_FORWARDING: ${VPN_PORT_FORWARDING:-off}
+    healthcheck:
+      start_period: 90s
+      interval: 15s
+      timeout: 10s
+      retries: 4
+    volumes:
+      - ${CONFIG_ROOT:-./config}/gluetun:/gluetun
+    ports:
+      - 8091:8080
+      - 6892:6892
+      - 6892:6892/udp
+
+  qbittorrent:
+    image: lscr.io/linuxserver/qbittorrent:latest
+    container_name: musikk-qbittorrent
+    profiles: ["torrent"]
+    restart: unless-stopped
+    network_mode: service:gluetun
+    depends_on:
+      init:
+        condition: service_completed_successfully
+      gluetun:
+        condition: service_started   # trygt: gluetuns brannmur slipper ingenting ut før VPN-en er oppe
+    environment:
+      <<: *env
+      WEBUI_PORT: 8080
+      TORRENTING_PORT: 6892
+    volumes:
+      - ${CONFIG_ROOT:-./config}/qbittorrent:/config
+      - ${DATA_ROOT:-./media}:/data
+
+  prowlarr:              # Indeksere – synkes automatisk til Lidarr (profil «indeksere»)
+    <<: *svc
+    profiles: ["indeksere"]
+    image: lscr.io/linuxserver/prowlarr:latest
+    container_name: musikk-prowlarr
+    environment: *env
+    volumes:
+      - ${CONFIG_ROOT:-./config}/prowlarr:/config
+    ports:
+      - 9698:9696
+
+  flaresolverr:
+    <<: *svc
+    profiles: ["indeksere"]
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: musikk-flaresolverr
+    environment:
+      TZ: ${TZ:-Europe/Oslo}
+      LOG_LEVEL: info
+
+  # ---------------------------------------------------------------------------
+  # Dashboard og kjøling
+  # ---------------------------------------------------------------------------
+  homepage:
+    <<: *svc
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: musikk-homepage
+    environment:
+      TZ: ${TZ:-Europe/Oslo}
+      HOMEPAGE_ALLOWED_HOSTS: ${HOMEPAGE_ALLOWED_HOSTS:-*}
+    volumes:
+      - ${CONFIG_ROOT:-./config}/homepage:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${DATA_ROOT:-./media}:/mediadisk:ro
+    ports:
+      - 3200:3000
+
+  kjoling:               # Viser belastning og roer ned nedlastingen når maskinen er varm (profil «kjoling»)
+    <<: *svc
+    profiles: ["kjoling"]
+    image: python:3.13-alpine
+    container_name: musikk-kjoling
+    command: ["python", "-u", "/stack/tools/throttle.py"]
+    environment:
+      TZ: ${TZ:-Europe/Oslo}
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      QBIT_URL: ${QBIT_URL:-}
+      SAB_URL: ${SAB_URL:-}
+      THROTTLE_CONTAINERS: lidarr,musikk-qbittorrent,musikk-sabnzbd,musikk-prowlarr,musikk-flaresolverr,musikk-homepage
+      HOT_TEMP: ${HOT_TEMP:-85}
+      COOL_TEMP: ${COOL_TEMP:-72}
+      HIGH_LOAD: ${HIGH_LOAD:-90}
+      LOW_LOAD: ${LOW_LOAD:-50}
+      CALM_CPUS: ${CALM_CPUS:-0.3}
+    volumes:
+      - ./tools:/stack/tools:ro
+      - ${CONFIG_ROOT:-./config}:/config
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 3012:3012

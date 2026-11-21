@@ -1,0 +1,18 @@
+title: Musikk
+theme: dark
+color: violet
+headerStyle: boxed
+statusStyle: dot
+layout:
+  Lytt:
+    style: row
+    columns: 3
+  Bibliotek:
+    style: row
+    columns: 3
+  Nedlasting:
+    style: row
+    columns: 4
+  Vedlikehold:
+    style: row
+    columns: 3

@@ -1,0 +1,13 @@
+# Bruker nedlasterne fra Plex-stack på samme maskin (VPN, qBittorrent, NZBGet, Prowlarr).
+# Lidarr, autoconfig og dashboardet kobles på Plex-stackens nettverk, så de når
+# appene der med navn (prowlarr, gluetun, nzbget), og Prowlarr når Lidarr.
+# Velges av veiviseren når den finner Plex-stack. Plex-stack må kjøre først.
+networks:
+  plex:
+    external: true
+    name: ${SHARED_NETWORK:-plex-stack_default}
+
+services:
+  lidarr:     {networks: [default, plex]}
+  autoconfig: {networks: [default, plex]}
+  homepage:   {networks: [default, plex]}

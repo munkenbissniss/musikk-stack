@@ -1,0 +1,21 @@
+MUSIKK-STACK FOR LINUX – KOM I GANG
+===================================
+
+1. Pakk ut og åpne en terminal i mappa:
+       unzip musikk-stack-linux.zip && cd musikk-stack
+
+2. Start:
+       ./start.sh
+
+   Første gang tilbyr skriptet å installere Docker, og kjører veiviseren.
+   Kjører Plex-stack allerede på maskinen, spør veiviseren om du vil bruke
+   nedlasterne derfra (anbefalt). Etterpå starter alt, og du ser at appene
+   settes opp automatisk.
+
+3. Lytt:        http://<maskinens-ip>:4533  eller en Subsonic-app
+   Dashboard:   http://<maskinens-ip>:3200
+
+Oppdatere senere:  ./oppdater.sh
+
+Hjemmeserver? Se linux/01-prepare-host.sh (ingen dvale, Docker og Tailscale)
+og linux/02-mount-disk.sh (monter disken fast). Alt står i README.md.

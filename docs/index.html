@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Musikk-stack – din egen musikkserver, satt opp av seg selv</title>
+<meta name="description" content="Navidrome, Lidarr og SABnzbd på Docker, med automatisk oppsett. For Linux, macOS og Windows. Kan dele nedlasterne med Plex-stack.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400;62..125,600;62..125,800;62..125,900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EEEFF3; --bg-2:#E1E3EA; --ink:#14162B; --muted:#5C6075;
+  --cobalt:#2643D0; --cobalt-2:#1C33A8; --vinyl:#18181C; --label:#F2B8C6;
+  --font:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 1.0625rem/1.6 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--cobalt);outline-offset:3px;border-radius:4px}
+.wrap{max-width:1140px;margin:0 auto;padding-inline:clamp(1.25rem,4vw,2.5rem)}
+code{font-family:inherit;font-weight:600;background:var(--bg-2);padding:.05em .35em;border-radius:4px}
+
+.top{display:flex;align-items:center;justify-content:space-between;padding-block:1.4rem}
+.mark{font-weight:900;font-stretch:125%;text-decoration:none;font-size:1.05rem}
+.mark span{font-weight:400;font-stretch:100%;color:var(--muted);font-size:.85rem;margin-left:.4rem}
+.top nav{display:flex;gap:1.4rem}
+.top nav a{text-decoration:none;color:var(--muted)}
+.top nav a:hover{color:var(--ink)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1fr 1.05fr;gap:clamp(2rem,5vw,4rem);align-items:center;
+  padding-block:clamp(2rem,6vw,4rem) clamp(3rem,8vw,6rem)}
+h1{font-weight:900;font-stretch:118%;font-size:clamp(2.5rem,5.6vw,4.4rem);line-height:.98;letter-spacing:-.02em;margin:0 0 1.3rem}
+.lede{font-size:1.22rem;color:var(--muted);max-width:34ch;margin:0 0 2rem}
+.actions{display:flex;flex-wrap:wrap;gap:1rem 1.6rem;align-items:center}
+.btn{display:inline-flex;align-items:baseline;gap:.5rem;background:var(--cobalt);color:#fff;text-decoration:none;
+  font-weight:600;padding:.85rem 1.4rem;border-radius:6px}
+.btn:hover{background:var(--cobalt-2)}
+.btn small{font-weight:400;opacity:.8}
+.quiet{color:var(--ink);text-underline-offset:4px}
+.meta{margin-top:1.6rem;color:var(--muted);font-size:.95rem}
+
+/* platecoveret */
+.record{position:relative;aspect-ratio:1.38/1;max-width:560px;width:100%;justify-self:end}
+.disc{position:absolute;top:4%;right:0;height:92%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,var(--label) 0 17%,#2a2a30 17.4% 18%,var(--vinyl) 18.5%),var(--vinyl);
+  box-shadow:0 18px 40px -20px rgba(0,0,0,.6);display:grid;place-items:center;
+  transform:translateX(-28%);animation:out 1.1s cubic-bezier(.2,.8,.2,1) .25s both}
+.disc::before{content:"";position:absolute;inset:0;border-radius:50%;
+  background:repeating-radial-gradient(circle,rgba(255,255,255,.045) 0 1px,transparent 1px 4px);
+  -webkit-mask:radial-gradient(circle,transparent 0 19%,#000 19.5% 97%,transparent 97.5%);mask:radial-gradient(circle,transparent 0 19%,#000 19.5% 97%,transparent 97.5%)}
+.disc::after{content:"";position:absolute;width:2.2%;aspect-ratio:1;border-radius:50%;background:var(--bg)}
+.disc .lbl{position:absolute;width:34%;aspect-ratio:1;border-radius:50%;display:grid;place-items:center;text-align:center;
+  font-weight:800;font-stretch:80%;font-size:clamp(.55rem,1.1vw,.75rem);line-height:1.15;color:var(--ink);
+  animation:spin 6s linear 1.4s infinite}
+.disc .lbl span{display:block;font-weight:400;transform:translateY(1.6em)}
+.sleeve{position:absolute;left:0;top:0;height:100%;width:72.5%;overflow:hidden;background:var(--cobalt);color:#fff;
+  padding:7%;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 24px 50px -26px rgba(20,22,43,.7)}
+.sleeve b{font-weight:900;font-stretch:75%;font-size:clamp(2rem,4.4vw,3.6rem);line-height:.9;letter-spacing:-.01em;text-transform:lowercase}
+.sleeve small{display:flex;justify-content:space-between;font-size:.85rem;opacity:.85}
+@keyframes out{from{transform:translateX(-40%)}to{transform:translateX(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.disc,.disc .lbl{animation:none;transform:none}}
+
+/* seksjoner */
+section{padding-block:clamp(3rem,7vw,5rem)}
+h2{font-weight:900;font-stretch:112%;font-size:clamp(1.8rem,3.4vw,2.6rem);letter-spacing:-.015em;line-height:1.05;margin:0 0 .8rem}
+.intro{color:var(--muted);max-width:58ch;margin:0 0 2.2rem;font-size:1.1rem}
+
+/* sporliste */
+.sides{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,5vw,4rem)}
+.side h3{font-weight:800;font-stretch:125%;font-size:1rem;margin:0 0 .6rem;color:var(--cobalt)}
+.tracks{list-style:none;margin:0;padding:0;border-top:2px solid var(--ink)}
+.tracks li{display:grid;grid-template-columns:2.4rem 1fr auto;gap:.2rem .8rem;padding:.9rem 0;border-bottom:1px solid #C9CCD8}
+.tracks .no{color:var(--muted);font-variant-numeric:tabular-nums}
+.tracks .t{font-weight:600}
+.tracks .p{font-variant-numeric:tabular-nums;color:var(--muted)}
+.tracks .d{grid-column:2/4;color:var(--muted);font-size:.98rem}
+.tracks .alt{font-weight:400;color:var(--muted);font-size:.9rem;margin-left:.3rem}
+
+/* med Plex */
+.together{background:var(--ink);color:#D9DCEA}
+.together h2{color:#fff}
+.together .intro{color:#A3A8C3}
+.together .cols{display:grid;grid-template-columns:1fr 1fr;gap:clamp(2rem,6vw,5rem)}
+.together ul{margin:0;padding-left:1.2rem}
+.together li{margin:.45rem 0}
+.together li::marker{color:var(--label)}
+.together aside{border-left:3px solid var(--label);padding-left:1.2rem;color:#A3A8C3}
+
+/* nedlasting */
+.oss{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem}
+.os{background:#fff;border-radius:8px;padding:1.4rem 1.4rem 1.6rem;display:flex;flex-direction:column}
+.os.mine{outline:2px solid var(--cobalt)}
+.os h3{margin:0 0 .2rem;font-size:1.3rem;font-weight:800;font-stretch:112%}
+.os .you{color:var(--cobalt);font-size:.95rem;margin:0 0 .4rem;font-weight:600}
+.os p{margin:.3rem 0 1.2rem;color:var(--muted)}
+.os .dl-link{margin-top:auto;align-self:flex-start}
+.os .need{font-size:.9rem;margin:1rem 0 0}
+.os:not(.mine) .btn{background:transparent;color:var(--cobalt);box-shadow:inset 0 0 0 2px var(--cobalt)}
+.os:not(.mine) .btn:hover{background:var(--bg)}
+
+.self{list-style:none;padding:0;margin:0;display:grid;gap:1.4rem;max-width:46rem}
+.self li{padding-left:1.6rem;position:relative}
+.self li::before{content:"";position:absolute;left:0;top:.45em;width:.8rem;height:.8rem;border-radius:50%;
+  background:radial-gradient(circle,var(--label) 0 30%,var(--vinyl) 32%)}
+.self b{display:block}
+
+footer{border-top:1px solid #C9CCD8;padding-block:2.2rem 3rem;color:var(--muted);font-size:.95rem}
+footer .wrap{display:flex;flex-wrap:wrap;gap:1rem 2rem;justify-content:space-between}
+footer p{margin:0;max-width:60ch}
+
+@media (max-width:900px){
+  .hero,.sides,.together .cols,.oss{grid-template-columns:1fr}
+  .record{justify-self:start}
+}
+@media (max-width:520px){.hide-s{display:none}}
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <a class="mark" href="#">musikk-stack<span id="ver"></span></a>
+  <nav>
+    <a href="#spor" class="hide-s">Innhold</a>
+    <a href="#plex" class="hide-s">Med Plex-stack</a>
+    <a href="#last-ned">Last ned</a>
+    <a class="repo-link" href="#">GitHub</a>
+  </nav>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <div>
+      <h1>Hele samlingen din, på alle enhetene dine.</h1>
+      <p class="lede">En egen musikkserver som setter seg opp selv, og henter nye album når artistene du følger gir ut noe.</p>
+      <div class="actions">
+        <a class="btn" id="primary" href="#last-ned">Last ned <small id="primary-os"></small></a>
+        <a class="quiet" href="#last-ned">Andre systemer</a>
+      </div>
+      <p class="meta">Linux, macOS og Windows. Gratis og åpen kildekode.</p>
+    </div>
+    <div class="record" aria-hidden="true">
+      <div class="disc"><div class="lbl">musikk-stack<span>33⅓</span></div></div>
+      <div class="sleeve"><b>din egen<br>musikk&shy;server</b><small><span>Navidrome · Lidarr</span><span>LP</span></small></div>
+    </div>
+  </div>
+
+  <section id="spor">
+    <div class="wrap">
+      <h2>Sporliste</h2>
+      <p class="intro">Alt kjører i Docker på én maskin. Tallet til høyre er porten du åpner i nettleseren, for eksempel <code>http://maskinen:4533</code>.</p>
+      <div class="sides">
+        <div class="side">
+          <h3>Side A: lytte</h3>
+          <ol class="tracks">
+            <li><span class="no">A1</span><span class="t">Navidrome</span><span class="p">4533</span>
+              <span class="d">Musikkserveren. Spillelister, favoritter og egne brukere. Virker med Symfonium, Amperfy, Feishin og andre Subsonic-apper.</span></li>
+            <li><span class="no">A2</span><span class="t">Dashboard</span><span class="p">3200</span>
+              <span class="d">Alle appene på én side, med det som lastes ned og plassen som er igjen.</span></li>
+            <li><span class="no">A3</span><span class="t">Kjøling</span><span class="p">3012</span>
+              <span class="d">Roer ned nedlastingen når maskinen blir varm. Avspillingen begrenses aldri.</span></li>
+          </ol>
+        </div>
+        <div class="side">
+          <h3>Side B: samle</h3>
+          <ol class="tracks">
+            <li><span class="no">B1</span><span class="t">Lidarr</span><span class="p">8686</span>
+              <span class="d">Følg artister. Nye album hentes i kvaliteten du velger, MP3 320 eller FLAC.</span></li>
+            <li><span class="no">B2</span><span class="t">SABnzbd</span><span class="p">8085</span>
+              <span class="d">Usenet, med serveren din lagt inn.</span></li>
+            <li><span class="no">B3</span><span class="t">qBittorrent bak VPN</span><span class="p">8091</span>
+              <span class="d">Torrent med killswitch, valgfritt.</span></li>
+            <li><span class="no">B4</span><span class="t">Prowlarr<span class="alt">eller Plex-stackens</span></span><span class="p">9698</span>
+              <span class="d">Indekserne dine. De som har musikk, kobles til Lidarr automatisk.</span></li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="plex" class="together">
+    <div class="wrap cols">
+      <div>
+        <h2>Har du Plex-stack fra før?</h2>
+        <p class="intro">Veiviseren finner den og spør om musikken skal bruke nedlasterne som allerede kjører.</p>
+        <aside>Plex-stack må kjøre før du starter musikk-stacken. Bruker den en nettverksdeling, bruker musikken den samme.</aside>
+      </div>
+      <ul>
+        <li>Ingen ekstra VPN, qBittorrent eller Usenet-klient, så maskinen bruker mindre minne.</li>
+        <li>Musikken havner på samme disk som filmene, og nedlastinger flyttes inn uten å kopieres.</li>
+        <li>Indeksere du legger til i Prowlarr, brukes for både filmer, serier og musikk.</li>
+        <li>Samme brukernavn og passord overalt. Veiviseren finner det selv.</li>
+        <li>I Plex-stack legges bare kategorien for musikk og Lidarr i Prowlarr til. Ingenting annet endres.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="last-ned">
+    <div class="wrap">
+      <h2>Last ned</h2>
+      <p class="intro">Pakkene inneholder det samme. Forskjellen er hvordan du starter dem.</p>
+      <div class="oss">
+        <div class="os" data-os="linux">
+          <h3>Linux</h3><p class="you" hidden>Ditt system</p>
+          <p>Kjør <code>./start.sh</code>. Skriptet tilbyr å installere Docker, og har med hjelp til å gjøre en gammel PC eller Mac til hjemmeserver.</p>
+          <a class="btn dl-link" data-file="musikk-stack-linux.zip" href="#">Last ned for Linux</a>
+        </div>
+        <div class="os" data-os="macos">
+          <h3>macOS</h3><p class="you" hidden>Ditt system</p>
+          <p>Dobbeltklikk <code>Start.command</code>. Første gang: høyreklikk og velg Åpne.</p>
+          <a class="btn dl-link" data-file="musikk-stack-macos.zip" href="#">Last ned for macOS</a>
+          <p class="need">Trenger OrbStack eller Docker Desktop.</p>
+        </div>
+        <div class="os" data-os="windows">
+          <h3>Windows</h3><p class="you" hidden>Ditt system</p>
+          <p>Dobbeltklikk <code>Start.bat</code>. Første gang: «Mer informasjon» og «Kjør likevel».</p>
+          <a class="btn dl-link" data-file="musikk-stack-windows.zip" href="#">Last ned for Windows</a>
+          <p class="need">Trenger Docker Desktop.</p>
+        </div>
+      </div>
+      <p class="meta">Alle versjoner og endringer: <a class="releases-link" href="#">utgivelser på GitHub</a>.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Det du gjør selv</h2>
+      <p class="intro">Resten står i oppsummeringen når autooppsettet er ferdig.</p>
+      <ul class="self">
+        <li><b>Legg til en indekser med musikk i Prowlarr.</b>Den kobles automatisk til Lidarr.</li>
+        <li><b>Lag en bruker til hver i familien i Navidrome.</b>Da får alle egne spillelister og favoritter.</li>
+        <li><b>Installer en Subsonic-app på mobilen.</b>For eksempel Symfonium eller Amperfy. Logg inn med <code>http://192.168.1.20:4533</code>.</li>
+      </ul>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Du er selv ansvarlig for hva du laster ned. Bruk stacken til musikk du har rett til. Ikke tilknyttet Spotify, Navidrome, Lidarr eller Plex Inc.</p>
+    <p>MIT-lisens · <a class="repo-link" href="#">Kildekoden på GitHub</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var repo = document.documentElement.getAttribute("data-repo");
+  if (!repo && /\.github\.io$/.test(location.hostname)) {
+    var owner = location.hostname.split(".")[0];
+    var first = location.pathname.split("/").filter(Boolean)[0];
+    repo = owner + "/" + (first && !/\.html?$/.test(first) ? first : owner + ".github.io");
+  }
+  var base = repo ? "https://github.com/" + repo : null;
+  function set(sel, url) { document.querySelectorAll(sel).forEach(function (a) { if (url) a.href = url; }); }
+  set(".repo-link", base);
+  set(".releases-link", base && base + "/releases");
+  document.querySelectorAll(".dl-link").forEach(function (a) {
+    if (base) a.href = base + "/releases/latest/download/" + a.dataset.file;
+  });
+  var ua = navigator.userAgent, os = /Windows/i.test(ua) ? "windows" : /Mac OS X|Macintosh/i.test(ua) ? "macos" : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? "linux" : null;
+  var names = { linux: "for Linux", macos: "for macOS", windows: "for Windows" };
+  if (os) {
+    var card = document.querySelector('.os[data-os="' + os + '"]');
+    card.classList.add("mine");
+    card.querySelector(".you").hidden = false;
+    card.parentNode.prepend(card);
+    document.getElementById("primary-os").textContent = names[os];
+    if (base) document.getElementById("primary").href = card.querySelector(".dl-link").href;
+  }
+  if (repo && window.fetch) {
+    fetch("https://api.github.com/repos/" + repo + "/releases/latest")
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) { if (j && j.tag_name) document.getElementById("ver").textContent = j.tag_name; })
+      .catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>

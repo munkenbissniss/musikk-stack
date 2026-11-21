@@ -1,0 +1,14 @@
+# Plex-stack bruker en nettverksdeling (NFS/SMB) som mediedisk. Musikken legges på
+# samme deling, så nedlastinger kan hardlinkes rett inn i biblioteket.
+# Velges av veiviseren sammen med compose.shared.yaml.
+volumes:
+  media:
+    external: true
+    name: ${SHARED_VOLUME:-plex-stack_media}
+
+services:
+  init:       {volumes: [media:/data]}
+  autoconfig: {volumes: [media:/data:ro]}
+  navidrome:  {volumes: [media:/media:ro]}
+  lidarr:     {volumes: [media:/data]}
+  homepage:   {volumes: [media:/mediadisk:ro]}

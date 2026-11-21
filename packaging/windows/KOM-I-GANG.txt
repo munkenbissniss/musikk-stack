@@ -1,0 +1,20 @@
+﻿MUSIKK-STACK FOR WINDOWS – KOM I GANG
+=====================================
+
+1. Installer Docker Desktop (https://www.docker.com/products/docker-desktop/)
+   og start det.
+
+2. Dobbeltklikk Start.bat.
+   Viser Windows «Windows beskyttet PCen», trykk «Mer informasjon» og
+   «Kjør likevel». Det trengs bare én gang.
+
+3. Veiviseren stiller noen spørsmål, så starter alt av seg selv.
+   Kjører Plex-stack allerede på PC-en, kan musikken bruke nedlasterne derfra.
+
+   Mediemappe skrives med vanlige skråstreker, f.eks. D:/Media
+
+4. Lytt:        http://localhost:4533  eller en Subsonic-app
+   Dashboard:   http://localhost:3200
+
+Oppdatere senere: dobbeltklikk Oppdater.bat.
+Mer hjelp: README.md

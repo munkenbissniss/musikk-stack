@@ -1,0 +1,16 @@
+# Torrent uten VPN: qBittorrent kobler seg direkte til nettet (ikke anbefalt).
+# Velges av veiviseren hvis du svarer «ingen VPN».
+services:
+  gluetun:
+    profiles: ["disabled"]
+  qbittorrent:
+    network_mode: !reset null
+    depends_on: !override
+      init:
+        condition: service_completed_successfully
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - 8091:8080
+      - 6892:6892
+      - 6892:6892/udp
